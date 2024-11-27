@@ -224,17 +224,17 @@ jobs:
         ls -l
 
         # Subir informe de rendimiento
-        aws s3 cp jmeter-performance-report.json s3://***/informes/jmeter-report-${{ github.sha }}.json
+        aws s3 cp jmeter-performance-report.json s3://bedrockawss3test/informes/jmeter-report-${{ github.sha }}.json
 
         # Subir resultados de pruebas
-        aws s3 cp performance-results.jtl s3://***/informes/jmeter-results-${{ github.sha }}.jtl
+        aws s3 cp performance-results.jtl s3://bedrockawss3test/informes/jmeter-results-${{ github.sha }}.jtl
 
         # Intentar sincronizar, si falla copiar contenido manualmente
-        aws s3 sync jmeter-report s3://***/informes/jmeter-report-${{ github.sha }}/ || {
+        aws s3 sync jmeter-report s3://bedrockawss3test/informes/jmeter-report-${{ github.sha }}/ || {
           # Si sync falla, copiar archivos individuales
           for file in jmeter-report/*; do
             if [ -f "$file" ]; then
-              aws s3 cp "$file" "s3://***/informes/jmeter-report-${{ github.sha }}/$(basename "$file")"
+              aws s3 cp "$file" "s3://bedrockawss3test/informes/jmeter-report-${{ github.sha }}/$(basename "$file")"
             fi
           done
         }
