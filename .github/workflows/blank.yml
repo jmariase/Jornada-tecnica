@@ -131,10 +131,26 @@ jobs:
     - name: Run JMeter Performance Tests
       run: |
         jmeter -n -t performance-test.jmx -l performance-results.jtl -f -o jmeter-report
-        sudo apt-get update
-        sudo apt-get install -y jq
-        cat jmeter-report/statistics.json | jq '.' > jmeter-performance-report.json
-    
+        
+        if [ ! -d "jmeter-report" ]; then
+          echo "::error::No se generó el directorio de informes de JMeter"
+          pwd
+          ls -la
+          
+          mkdir -p jmeter-report
+          cp performance-results.jtl jmeter-report/
+          
+          echo '{"error": "Informe de JMeter no generado correctamente"}' > jmeter-report/statistics.json
+        fi
+          sudo apt-get update
+          sudo apt-get install -y jq
+          
+          if [ -f "jmeter-report/statistics.json" ]; then
+            cat jmeter-report/statistics.json | jq '.' > jmeter-performance-report.json
+          else
+            echo '{"error": "No se pudo generar informe de rendimiento"}' > jmeter-performance-report.json
+          fi
+          
     - name: Install OWASP ZAP
       run: |
         # Array de versiones a intentar
@@ -218,17 +234,23 @@ jobs:
           exit 1
         fi
       
-    - name: Upload Reports to S3
-      run: |
-        # Subir informe de rendimiento
-        aws s3 cp jmeter-performance-report.json s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}.json
-        aws s3 cp performance-results.jtl s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-results-${{ github.sha }}.jtl
-        aws s3 sync jmeter-report s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}/
-        
-        # Subir informe de seguridad (si existe)
-        aws s3 cp zap-reports/zap-security-report.html s3://${{ secrets.S3_BUCKET_NAME }}/informes/zap-report-${{ github.sha }}.html
-        if [ -f zap-security-report.json ]; then
-          aws s3 cp zap-security-report.json s3://${{ secrets.S3_BUCKET_NAME }}/informes/zap-report-${{ github.sha }}.json
-        else
-          echo "::warning::No se encontró informe de seguridad para subir"
-        fi
+        - name: Upload Reports to S3
+          run: |
+            # Crear directorios de respaldo si no existen
+            mkdir -p jmeter-report
+            
+            # Subir informe de rendimiento
+            aws s3 cp jmeter-performance-report.json s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}.json
+            
+            # Subir resultados de pruebas
+            aws s3 cp performance-results.jtl s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-results-${{ github.sha }}.jtl
+            
+            # Intentar sincronizar, si falla copiar contenido manualmente
+            aws s3 sync jmeter-report s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}/ || {
+              # Si sync falla, copiar archivos individuales
+              for file in jmeter-report/*; do
+                if [ -f "$file" ]; then
+                  aws s3 cp "$file" "s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}/$(basename "$file")"
+                fi
+              done
+            }
