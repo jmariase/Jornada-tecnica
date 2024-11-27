@@ -222,18 +222,6 @@ jobs:
             -htmlreport "${{ github.workspace }}/zap-reports/zap-security-report.html"
         fi
         
-        # Mostrar contenido si existe
-        if [ -f "${{ github.workspace }}/zap-reports/zap-security-report.json" ]; then
-          echo "Contenido del informe de seguridad:"
-          cat "${{ github.workspace }}/zap-reports/zap-security-report.json"
-        elif [ -f "${{ github.workspace }}/zap-reports/zap-security-report-alt.json" ]; then
-          echo "Contenido del informe de seguridad alternativo:"
-          cat "${{ github.workspace }}/zap-reports/zap-security-report-alt.json"
-        else
-          echo "::error::No se pudo generar el informe de seguridad"
-          exit 1
-        fi
-      
         - name: Upload Reports to S3
           run: |
             # Crear directorios de respaldo si no existen
