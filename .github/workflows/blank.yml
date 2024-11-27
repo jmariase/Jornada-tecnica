@@ -151,92 +151,94 @@ jobs:
             echo '{"error": "No se pudo generar informe de rendimiento"}' > jmeter-performance-report.json
           fi
           
-    - name: Install OWASP ZAP
-      run: |
-        # Array de versiones a intentar
-        VERSIONS=("2.14.0" "2.13.0" "2.12.0")
-        
-        for VERSION in "${VERSIONS[@]}"; do
-          # Intentar descargar
-          wget -q "https://github.com/zaproxy/zaproxy/releases/download/v${VERSION}/ZAP_${VERSION}_Linux.tar.gz" -O zap.tar.gz
-          
-          # Verificar descarga
-          if [ $? -eq 0 ]; then
-            echo "Descargando ZAP versión ${VERSION}"
-            tar -xzf zap.tar.gz
-            
-            # Encontrar directorio de ZAP
-            ZAP_DIR=$(find . -type d -name "ZAP_*" | head -n 1)
-            
-            if [ -n "$ZAP_DIR" ]; then
-              echo "ZAP instalado desde versión ${VERSION}"
-              # Agregar permisos de ejecución
-              chmod +x "$ZAP_DIR/zap.sh"
-              break
-            fi
-          fi
-        done
-        
-        # Verificar si se instaló ZAP
-        if [ ! -d "$ZAP_DIR" ]; then
-          echo "No se pudo instalar OWASP ZAP"
-          exit 1
-        fi
-        
-        # Exportar la ruta completa de ZAP para usar en pasos posteriores
-        echo "ZAP_FULL_PATH=$ZAP_DIR/zap.sh" >> $GITHUB_ENV
-    
-         - name: Run OWASP ZAP Security Scan
-        run: |
-          # Crear directorio temporal para informes
-          mkdir -p ${{ github.workspace }}/zap-reports
-      
-          # Imprimir información de depuración
-          echo "Escaneando URL: ${{ env.TARGET_URL }}"
-          
-          # Verificar que el script de ZAP existe
-          if [ ! -f "./ZAP_2.14.0/zap.sh" ]; then
-            echo "Error: No se encontró el script de ZAP"
-            exit 1
-          fi
-          
-          # Intentar escaneo básico
-          "./ZAP_2.14.0/zap.sh" -cmd \
-            -quickurl "${{ env.TARGET_URL }}" \
-            -quickout "${{ github.workspace }}/zap-reports/zap-security-report.json" \
-            -quickprogress \
-            -silent \
-          
-          # Verificar si se generó el informe
-          if [ ! -f "${{ github.workspace }}/zap-reports/zap-security-report.json" ]; then
-            echo "Error: No se generó informe de seguridad"
-            
-            # Intentar escaneo alternativo
-            "./ZAP_2.14.0/zap.sh" -cmd \
-              -port 8080 \
-              -host 0.0.0.0 \
-              -config api.disablekey=true \
-              -quickurl "${{ env.TARGET_URL }}" \
-              -quickout "${{ github.workspace }}/zap-reports/zap-security-report-alt.json"
-          fi
-      
-            - name: Upload Reports to S3
-              run: |
-                # Crear directorios de respaldo si no existen
-                mkdir -p jmeter-report
+          - name: Install and Configure OWASP ZAP
+            run: |
+              # Array de versiones a intentar
+              VERSIONS=("2.14.0" "2.13.0" "2.12.0")
+              
+              for VERSION in "${VERSIONS[@]}"; do
+                # Intentar descargar
+                wget -q "https://github.com/zaproxy/zaproxy/releases/download/v${VERSION}/ZAP_${VERSION}_Linux.tar.gz" -O zap.tar.gz
                 
-                # Subir informe de rendimiento
-                aws s3 cp jmeter-performance-report.json s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}.json
+                # Verificar descarga
+                if [ $? -eq 0 ]; then
+                  echo "Descargando ZAP versión ${VERSION}"
+                  tar -xzf zap.tar.gz
+                  
+                  # Encontrar directorio de ZAP
+                  ZAP_DIR=$(find . -type d -name "ZAP_*" | head -n 1)
+                  
+                  if [ -n "$ZAP_DIR" ]; then
+                    echo "ZAP instalado desde versión ${VERSION}"
+                    # Agregar permisos de ejecución
+                    chmod +x "$ZAP_DIR/zap.sh"
+                    
+                    # Exportar la ruta completa de ZAP para usar en pasos posteriores
+                    echo "ZAP_FULL_PATH=$ZAP_DIR/zap.sh" >> $GITHUB_ENV
+                    break
+                  fi
+                fi
+              done
+              
+              # Verificar si se instaló ZAP
+              if [ -z "$ZAP_DIR" ]; then
+                echo "No se pudo instalar OWASP ZAP"
+                exit 1
+              fi
+          
+          - name: Run OWASP ZAP Security Scan
+            run: |
+              # Crear directorio temporal para informes
+              mkdir -p ${{ github.workspace }}/zap-reports
+              
+              # Imprimir información de depuración
+              echo "Escaneando URL: ${{ env.TARGET_URL }}"
+              
+              # Verificar que el script de ZAP existe
+              if [ ! -f "$ZAP_FULL_PATH" ]; then
+                echo "Error: No se encontró el script de ZAP"
+                exit 1
+              fi
+              
+              # Intentar escaneo básico
+              "$ZAP_FULL_PATH" -cmd \
+                -quickurl "${{ env.TARGET_URL }}" \
+                -quickout "${{ github.workspace }}/zap-reports/zap-security-report.json" \
+                -quickprogress \
+                -silent
+              
+              # Verificar si se generó el informe
+              if [ ! -f "${{ github.workspace }}/zap-reports/zap-security-report.json" ]; then
+                echo "Error: No se generó informe de seguridad"
                 
-                # Subir resultados de pruebas
-                aws s3 cp performance-results.jtl s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-results-${{ github.sha }}.jtl
-                
-                # Intentar sincronizar, si falla copiar contenido manualmente
-                aws s3 sync jmeter-report s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}/ || {
-                  # Si sync falla, copiar archivos individuales
-                  for file in jmeter-report/*; do
-                    if [ -f "$file" ]; then
-                      aws s3 cp "$file" "s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}/$(basename "$file")"
-                    fi
+                # Intentar escaneo alternativo
+                "$ZAP_FULL_PATH" -cmd \
+                  -port 8080 \
+                  -host 0.0.0.0 \
+                  -config api.disablekey=true \
+                  -quickurl "${{ env.TARGET_URL }}" \
+                  -quickout "${{ github.workspace }}/zap-reports/zap-security-report-alt.json"
+              fi
+          
+          - name: Upload Reports to S3
+            run: |
+              # Crear directorios de respaldo si no existen
+              mkdir -p jmeter-report
+              
+              # Subir informe de rendimiento
+              aws s3 cp jmeter-performance-report.json s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}.json
+              
+              # Subir resultados de pruebas
+              aws s3 cp performance-results.jtl s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-results-${{ github.sha }}.jtl
+              
+              # Intentar sincronizar, si falla copiar contenido manualmente
+              aws s3 sync jmeter-report s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}/ || {
+                # Si sync falla, copiar archivos individuales
+                for file in jmeter-report/*; do
+                  if [ -f "$file" ]; then
+                    aws s3 cp "$file" "s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}/$(basename "$file")"
+                  fi
+                done
+              }
                   done
                 }
