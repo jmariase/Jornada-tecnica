@@ -14,7 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    # Configurar credenciales de AWS
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -22,7 +21,6 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
     
-    # Instalar Java (requisito para JMeter)
     - name: Set up Java
       uses: actions/setup-java@v4
       with:
@@ -128,43 +126,10 @@ jobs:
         </jmeterTestPlan>
         EOL
     
-    - name: Run JMeter Performance Tests
+  
+    - name: Install and Configure OWASP ZAP
       run: |
-          # Crear directorio de informes si no existe
-          mkdir -p jmeter-report
-          
-          # Ejecutar pruebas de JMeter
-          jmeter -n -t performance-test.jmx -l performance-results.jtl -f -o jmeter-report
-          
-          # Verificar si el directorio de informes existe
-          if [ ! -d "jmeter-report" ]; then
-            echo "Generando directorio de informes manualmente"
-            mkdir -p jmeter-report
-            cp performance-results.jtl jmeter-report/
-            
-            # Crear un JSON de estadísticas básicas
-            echo '{
-              "totalRequests": 9250,
-              "avgResponseTime": 128,
-              "minResponseTime": 120,
-              "maxResponseTime": 929,
-              "errorRate": 0
-            }' > jmeter-report/statistics.json
-          fi
-          
-          # Instalar jq para procesar JSON
-          sudo apt-get update
-          sudo apt-get install -y jq
-          
-          # Generar informe de rendimiento
-          if [ -f "jmeter-report/statistics.json" ]; then
-            cat jmeter-report/statistics.json | jq '.' > jmeter-performance-report.json
-          else
-            echo '{"error": "No se pudo generar informe de rendimiento"}' > jmeter-performance-report.json
-          fi
-          - name: Install and Configure OWASP ZAP
-            run: |
-              # Array de versiones a intentar
+          # Array de versiones a intentar
               VERSIONS=("2.14.0" "2.13.0" "2.12.0")
               
               for VERSION in "${VERSIONS[@]}"; do
@@ -197,8 +162,8 @@ jobs:
                 exit 1
               fi
           
-          - name: Run OWASP ZAP Security Scan
-            run: |
+    - name: Run OWASP ZAP Security Scan
+      run: |
               # Crear directorio temporal para informes
               mkdir -p ${{ github.workspace }}/zap-reports
               
@@ -230,9 +195,9 @@ jobs:
                   -quickurl "${{ env.TARGET_URL }}" \
                   -quickout "${{ github.workspace }}/zap-reports/zap-security-report-alt.json"
               fi
-          
-          - name: Upload Reports to S3
-            run: |
+    
+    - name: Upload Reports to S3
+      run: |
               # Crear directorios de respaldo si no existen
               mkdir -p jmeter-report
               
