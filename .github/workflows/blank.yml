@@ -176,17 +176,16 @@ jobs:
         echo "Escaneando URL: ${{ env.TARGET_URL }}"
         
         # Verificar que el script de ZAP existe
-        if [ ! -f "${{ env.ZAP_FULL_PATH }}" ]; then
+        if [ ! -f "./ZAP_2.14.0/zap.sh" ]; then
           echo "Error: No se encontró el script de ZAP"
           exit 1
         fi
         
-        # Intentar escaneo con más verbosidad
-        "${{ env.ZAP_FULL_PATH }}" -cmd \
+        # Intentar escaneo básico
+        "./ZAP_2.14.0/zap.sh" -cmd \
           -quickurl "${{ env.TARGET_URL }}" \
           -quickout zap-security-report.json \
-          -owasp \
-          -nooutputstream \
+          -quickprogress \
           -silent
         
         # Verificar si se generó el informe
@@ -194,7 +193,7 @@ jobs:
           echo "Error: No se generó informe de seguridad"
           
           # Intentar escaneo alternativo
-          "${{ env.ZAP_FULL_PATH }}" -cmd \
+          "./ZAP_2.14.0/zap.sh" -cmd \
             -port 8080 \
             -host 0.0.0.0 \
             -config api.disablekey=true \
