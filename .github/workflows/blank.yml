@@ -189,7 +189,8 @@ jobs:
           -quickurl "${{ env.TARGET_URL }}" \
           -quickout "${{ github.workspace }}/zap-reports/zap-security-report.json" \
           -quickprogress \
-          -silent
+          -silent \
+          -addoninstall htmlreports
         
         # Verificar si se generó el informe
         if [ ! -f "${{ github.workspace }}/zap-reports/zap-security-report.json" ]; then
@@ -202,6 +203,7 @@ jobs:
             -config api.disablekey=true \
             -quickurl "${{ env.TARGET_URL }}" \
             -quickout "${{ github.workspace }}/zap-reports/zap-security-report-alt.json"
+            -htmlreport "${{ github.workspace }}/zap-reports/zap-security-report.html"
         fi
         
         # Mostrar contenido si existe
@@ -219,11 +221,14 @@ jobs:
     - name: Upload Reports to S3
       run: |
         # Subir informe de rendimiento
-        aws s3 cp jmeter-performance-report.json s3://${{ secrets.S3_BUCKET_NAME }}/serenity/jmeter-report-${{ github.sha }}.json
+        aws s3 cp jmeter-performance-report.json s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}.json
+        aws s3 cp performance-results.jtl s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-results-${{ github.sha }}.jtl
+        aws s3 sync jmeter-report s3://${{ secrets.S3_BUCKET_NAME }}/informes/jmeter-report-${{ github.sha }}/
         
         # Subir informe de seguridad (si existe)
+        aws s3 cp zap-reports/zap-security-report.html s3://${{ secrets.S3_BUCKET_NAME }}/informes/zap-report-${{ github.sha }}.html
         if [ -f zap-security-report.json ]; then
-          aws s3 cp zap-security-report.json s3://${{ secrets.S3_BUCKET_NAME }}/serenity/zap-report-${{ github.sha }}.json
+          aws s3 cp zap-security-report.json s3://${{ secrets.S3_BUCKET_NAME }}/informes/zap-report-${{ github.sha }}.json
         else
           echo "::warning::No se encontró informe de seguridad para subir"
         fi
