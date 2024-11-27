@@ -2,115 +2,104 @@ name: Performance and Security Scanning
 
 on: [push, pull_request]
 
+env:
+  TARGET_URL: https://juice-shop.herokuapp.com/
+  JMETER_VERSION: 5.6.3
+  ZAP_VERSION: 2.12.0
+
 jobs:
   performance-security-scan:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     # Configurar credenciales de AWS
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
+      uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1  # Ajusta tu región
+        aws-region: us-east-1
     
     # Instalar Java (requisito para JMeter)
     - name: Set up Java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '11'
     
-    # Instalar JMeter
     - name: Install JMeter
       run: |
-        wget wget https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz
-        tar -xzf apache-jmeter-5.6.3.tgz
-        export PATH=$PATH:$PWD/apache-jmeter-5.6.3/bin
+        wget https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-${{ env.JMETER_VERSION }}.tgz
+        tar -xzvf apache-jmeter-${{ env.JMETER_VERSION }}.tgz
+        echo "$PWD/apache-jmeter-${{ env.JMETER_VERSION }}/bin" >> $GITHUB_PATH
     
-    # Crear un test plan de JMeter en JSON
-    - name: Create JMeter Test Plan and JSON Report
+    - name: Create JMeter Test Plan
       run: |
         cat > performance-test.jmx << EOL
         <?xml version="1.0" encoding="UTF-8"?>
-        <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+        <jmeterTestPlan version="1.2" properties="5.0" jmeter="${{ env.JMETER_VERSION }}">
           <hashTree>
             <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Performance Test" enabled="true">
-              <stringProp name="TestPlan.comments"></stringProp>
-              <boolProp name="TestPlan.functional_mode">false</boolProp>
-              <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
-              <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
-              <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
-                <collectionProp name="Arguments.elements"/>
-              </elementProp>
-              <stringProp name="TestPlan.user_define_classpath"></stringProp>
-            </TestPlan>
-            <hashTree>
-              <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Basic Load Test" enabled="true">
-                <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-                <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-                  <boolProp name="LoopController.continue_forever">false</boolProp>
-                  <intProp name="LoopController.loops">-1</intProp>
-                </elementProp>
-                <stringProp name="ThreadGroup.num_threads">50</stringProp>
-                <stringProp name="ThreadGroup.ramp_time">1</stringProp>
-                <boolProp name="ThreadGroup.scheduler">false</boolProp>
-                <stringProp name="ThreadGroup.duration"></stringProp>
-                <stringProp name="ThreadGroup.delay"></stringProp>
-                <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
-              </ThreadGroup>
               <hashTree>
-                <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="HTTP Request" enabled="true">
-                  <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
-                    <collectionProp name="Arguments.elements"/>
+                <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Load Test" enabled="true">
+                  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+                  <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+                    <boolProp name="LoopController.continue_forever">false</boolProp>
+                    <intProp name="LoopController.loops">-1</intProp>
                   </elementProp>
-                  <stringProp name="HTTPSampler.domain">juice-shop.herokuapp.com/</stringProp>
-                  <stringProp name="HTTPSampler.port"></stringProp>
-                  <stringProp name="HTTPSampler.protocol">https</stringProp>
-                  <stringProp name="HTTPSampler.contentEncoding"></stringProp>
-                  <stringProp name="HTTPSampler.path">/</stringProp>
-                  <stringProp name="HTTPSampler.method">GET</stringProp>
-                  <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-                  <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
-                  <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-                  <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
-                  <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
-                  <stringProp name="HTTPSampler.connect_timeout"></stringProp>
-                  <stringProp name="HTTPSampler.response_timeout"></stringProp>
-                </HTTPSamplerProxy>
-                <hashTree/>
+                  <stringProp name="ThreadGroup.num_threads">100</stringProp>
+                  <stringProp name="ThreadGroup.ramp_time">2</stringProp>
+                  <boolProp name="ThreadGroup.scheduler">true</boolProp>
+                  <stringProp name="ThreadGroup.duration">300</stringProp>
+                </ThreadGroup>
+                <hashTree>
+                  <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="HTTP Request" enabled="true">
+                    <stringProp name="HTTPSampler.domain">juice-shop.herokuapp.com</stringProp>
+                    <stringProp name="HTTPSampler.protocol">https</stringProp>
+                    <stringProp name="HTTPSampler.path">/</stringProp>
+                    <stringProp name="HTTPSampler.method">GET</stringProp>
+                  </HTTPSamplerProxy>
+                </hashTree>
               </hashTree>
-            </hashTree>
+            </TestPlan>
           </hashTree>
         </jmeterTestPlan>
         EOL
     
-    # Ejecutar pruebas de rendimiento con JMeter y generar JSON
     - name: Run JMeter Performance Tests
       run: |
-        apache-jmeter-5.5/bin/jmeter -n -t performance-test.jmx -l performance-results.jtl -f -o jmeter-report-json
-        
-        # Convertir resultados a JSON
+        jmeter -n -t performance-test.jmx -l performance-results.jtl -f -o jmeter-report
         sudo apt-get update
         sudo apt-get install -y jq
-        cat jmeter-report-json/statistics.json | jq '.' > jmeter-performance-report.json
+        cat jmeter-report/statistics.json | jq '.' > jmeter-performance-report.json
     
-    # Instalar OWASP ZAP
     - name: Install OWASP ZAP
       run: |
-        wget https://github.com/zaproxy/zaproxy/releases/download/v2.12.0/ZAP_2.12.0_Linux.tar.gz
-        tar -xzf ZAP_2.12.0_Linux.tar.gz
+        wget https://github.com/zaproxy/zaproxy/releases/download/v${{ env.ZAP_VERSION }}/ZAP_${{ env.ZAP_VERSION }}_Linux.tar.gz
+        tar -xzf ZAP_${{ env.ZAP_VERSION }}_Linux.tar.gz
     
-    # Ejecutar escaneo de seguridad con ZAProxy en JSON
     - name: Run OWASP ZAP Security Scan
       run: |
-        ./ZAP_2.12.0/zap.sh -cmd -quickurl https://juice-shop.herokuapp.com/ -quickout zap-report.json -owasp
+        ./ZAP_${{ env.ZAP_VERSION }}/zap.sh -cmd -quickurl ${{ env.TARGET_URL }} -quickout zap-report.json -owasp
     
-    # Subir reportes a S3
     - name: Upload Reports to S3
       run: |
         aws s3 cp jmeter-performance-report.json s3://${{ secrets.S3_BUCKET_NAME }}/performance-reports/jmeter-report-${{ github.sha }}.json
         aws s3 cp zap-report.json s3://${{ secrets.S3_BUCKET_NAME }}/security-reports/zap-report-${{ github.sha }}.json
+    
+    - name: Check Performance Thresholds
+      run: |
+        performance_avg=$(jq '.Total.throughput' jmeter-performance-report.json)
+        if (( $(echo "$performance_avg < 10" | bc -l) )); then
+          echo "Performance test failed: Throughput below threshold"
+          exit 1
+        fi
+    
+    - name: Notify on Failure
+      if: failure()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: Performance or Security scan failed for ${{ github.repository }}
