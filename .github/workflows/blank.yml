@@ -154,6 +154,8 @@ jobs:
             
             if [ -n "$ZAP_DIR" ]; then
               echo "ZAP instalado desde versión ${VERSION}"
+              # Agregar permisos de ejecución
+              chmod +x "$ZAP_DIR/zap.sh"
               break
             fi
           fi
@@ -164,14 +166,23 @@ jobs:
           echo "No se pudo instalar OWASP ZAP"
           exit 1
         fi
-      
+        
+        # Exportar la ruta completa de ZAP para usar en pasos posteriores
+        echo "ZAP_FULL_PATH=$ZAP_DIR/zap.sh" >> $GITHUB_ENV
+    
     - name: Run OWASP ZAP Security Scan
       run: |
         # Imprimir información de depuración
         echo "Escaneando URL: ${{ env.TARGET_URL }}"
         
+        # Verificar que el script de ZAP existe
+        if [ ! -f "${{ env.ZAP_FULL_PATH }}" ]; then
+          echo "Error: No se encontró el script de ZAP"
+          exit 1
+        fi
+        
         # Intentar escaneo con más verbosidad
-        "$ZAP_DIR/zap.sh" -cmd \
+        "${{ env.ZAP_FULL_PATH }}" -cmd \
           -quickurl "${{ env.TARGET_URL }}" \
           -quickout zap-security-report.json \
           -owasp \
@@ -183,7 +194,7 @@ jobs:
           echo "Error: No se generó informe de seguridad"
           
           # Intentar escaneo alternativo
-          "$ZAP_DIR/zap.sh" -cmd \
+          "${{ env.ZAP_FULL_PATH }}" -cmd \
             -port 8080 \
             -host 0.0.0.0 \
             -config api.disablekey=true \
