@@ -67,7 +67,7 @@ jobs:
                   <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
                     <collectionProp name="Arguments.elements"/>
                   </elementProp>
-                  <stringProp name="HTTPSampler.domain">example.com</stringProp>
+                  <stringProp name="HTTPSampler.domain">juice-shop.herokuapp.com/</stringProp>
                   <stringProp name="HTTPSampler.port"></stringProp>
                   <stringProp name="HTTPSampler.protocol">https</stringProp>
                   <stringProp name="HTTPSampler.contentEncoding"></stringProp>
@@ -107,7 +107,7 @@ jobs:
     # Ejecutar escaneo de seguridad con ZAProxy en JSON
     - name: Run OWASP ZAP Security Scan
       run: |
-        ./ZAP_2.12.0/zap.sh -cmd -quickurl https://example.com -quickout zap-report.json -owasp
+        ./ZAP_2.12.0/zap.sh -cmd -quickurl https://juice-shop.herokuapp.com/ -quickout zap-report.json -owasp
     
     # Subir reportes a S3
     - name: Upload Reports to S3
