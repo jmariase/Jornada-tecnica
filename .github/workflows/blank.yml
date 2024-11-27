@@ -27,16 +27,16 @@ jobs:
     # Instalar JMeter
     - name: Install JMeter
       run: |
-        wget https://downloads.apache.org//jmeter/binaries/apache-jmeter-5.5.tgz
-        tar -xzf apache-jmeter-5.5.tgz
-        export PATH=$PATH:$PWD/apache-jmeter-5.5/bin
+        wget wget https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz
+        tar -xzf apache-jmeter-5.6.3.tgz
+        export PATH=$PATH:$PWD/apache-jmeter-5.6.3/bin
     
     # Crear un test plan de JMeter en JSON
     - name: Create JMeter Test Plan and JSON Report
       run: |
         cat > performance-test.jmx << EOL
         <?xml version="1.0" encoding="UTF-8"?>
-        <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.5">
+        <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
           <hashTree>
             <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Performance Test" enabled="true">
               <stringProp name="TestPlan.comments"></stringProp>
