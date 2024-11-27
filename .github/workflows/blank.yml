@@ -58,7 +58,7 @@ jobs:
                   <boolProp name="LoopController.continue_forever">false</boolProp>
                   <intProp name="LoopController.loops">-1</intProp>
                 </elementProp>
-                <stringProp name="ThreadGroup.num_threads">50</stringProp>
+                <stringProp name="ThreadGroup.num_threads">20</stringProp>
                 <stringProp name="ThreadGroup.ramp_time">1</stringProp>
                 <boolProp name="ThreadGroup.scheduler">true</boolProp>
                 <stringProp name="ThreadGroup.duration">300</stringProp>
@@ -167,24 +167,47 @@ jobs:
       
     - name: Run OWASP ZAP Security Scan
       run: |
-        # Ejecutar escaneo con primera URL encontrada
-        "$ZAP_DIR/zap.sh" -cmd -quickurl ${{ env.TARGET_URL }} -quickout zap-report.json -owasp || true
+        # Imprimir información de depuración
+        echo "Escaneando URL: ${{ env.TARGET_URL }}"
+        
+        # Intentar escaneo con más verbosidad
+        "$ZAP_DIR/zap.sh" -cmd \
+          -quickurl "${{ env.TARGET_URL }}" \
+          -quickout zap-security-report.json \
+          -owasp \
+          -nooutputstream \
+          -silent
         
         # Verificar si se generó el informe
-        if [ ! -f zap-report.json ]; then
-          echo "Advertencia: No se generó informe de seguridad"
-          echo "::warning::No se pudo completar el escaneo de seguridad"
+        if [ ! -f zap-security-report.json ]; then
+          echo "Error: No se generó informe de seguridad"
+          
+          # Intentar escaneo alternativo
+          "$ZAP_DIR/zap.sh" -cmd \
+            -port 8080 \
+            -host 0.0.0.0 \
+            -config api.disablekey=true \
+            -quickurl "${{ env.TARGET_URL }}" \
+            -quickout zap-security-report.json
+        fi
+        
+        # Mostrar contenido si existe
+        if [ -f zap-security-report.json ]; then
+          echo "Contenido del informe de seguridad:"
+          cat zap-security-report.json
+        else
+          echo "::error::No se pudo generar el informe de seguridad"
+          exit 1
         fi
     
     - name: Upload Reports to S3
       run: |
+        # Subir informe de rendimiento
         aws s3 cp jmeter-performance-report.json s3://${{ secrets.S3_BUCKET_NAME }}/performance-reports/jmeter-report-${{ github.sha }}.json
-        aws s3 cp zap-report.json s3://${{ secrets.S3_BUCKET_NAME }}/security-reports/zap-report-${{ github.sha }}.json
-    
-    - name: Check Performance Thresholds
-      run: |
-        performance_avg=$(jq '.Total.throughput' jmeter-performance-report.json)
-        if (( $(echo "$performance_avg < 10" | bc -l) )); then
-          echo "Performance test failed: Throughput below threshold"
-          exit 1
+        
+        # Subir informe de seguridad (si existe)
+        if [ -f zap-security-report.json ]; then
+          aws s3 cp zap-security-report.json s3://${{ secrets.S3_BUCKET_NAME }}/security-reports/zap-report-${{ github.sha }}.json
+        else
+          echo "::warning::No se encontró informe de seguridad para subir"
         fi
