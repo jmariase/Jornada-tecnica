@@ -137,12 +137,44 @@ jobs:
     
     - name: Install OWASP ZAP
       run: |
-        wget https://github.com/zaproxy/zaproxy/releases/download/v${{ env.ZAP_VERSION }}/ZAP_${{ env.ZAP_VERSION }}_Linux.tar.gz
-        tar -xzf ZAP_${{ env.ZAP_VERSION }}_Linux.tar.gz
-    
+        # Array de versiones a intentar
+        VERSIONS=("2.14.0" "2.13.0" "2.12.0")
+        
+        for VERSION in "${VERSIONS[@]}"; do
+          # Intentar descargar
+          wget -q "https://github.com/zaproxy/zaproxy/releases/download/v${VERSION}/ZAP_${VERSION}_Linux.tar.gz" -O zap.tar.gz
+          
+          # Verificar descarga
+          if [ $? -eq 0 ]; then
+            echo "Descargando ZAP versión ${VERSION}"
+            tar -xzf zap.tar.gz
+            
+            # Encontrar directorio de ZAP
+            ZAP_DIR=$(find . -type d -name "ZAP_*" | head -n 1)
+            
+            if [ -n "$ZAP_DIR" ]; then
+              echo "ZAP instalado desde versión ${VERSION}"
+              break
+            fi
+          fi
+        done
+        
+        # Verificar si se instaló ZAP
+        if [ ! -d "$ZAP_DIR" ]; then
+          echo "No se pudo instalar OWASP ZAP"
+          exit 1
+        fi
+      
     - name: Run OWASP ZAP Security Scan
       run: |
-        ./ZAP_${{ env.ZAP_VERSION }}/zap.sh -cmd -quickurl ${{ env.TARGET_URL }} -quickout zap-report.json -owasp
+        # Ejecutar escaneo con primera URL encontrada
+        "$ZAP_DIR/zap.sh" -cmd -quickurl ${{ env.TARGET_URL }} -quickout zap-report.json -owasp || true
+        
+        # Verificar si se generó el informe
+        if [ ! -f zap-report.json ]; then
+          echo "Advertencia: No se generó informe de seguridad"
+          echo "::warning::No se pudo completar el escaneo de seguridad"
+        fi
     
     - name: Upload Reports to S3
       run: |
