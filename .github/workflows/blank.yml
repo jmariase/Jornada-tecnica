@@ -275,7 +275,7 @@ jobs:
           # Upload ZAP security reports
             if [ -d "${{ github.workspace }}/zap-reports" ]; then
               echo "Uploading ZAP security reports"
-              aws s3 sync "${{ github.workspace }}/zap-reports" s3://bedrockawss3test/informes/zap-reports-${{ github.sha }}/
+              aws s3 sync "${{ github.workspace }}/zap-reports" s3://bedrockawss3test/informes/zap-reports-${{ github.sha }}.json
             else
               echo "No ZAP reports found to upload"
             fi  
