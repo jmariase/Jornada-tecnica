@@ -217,7 +217,5 @@ jobs:
               
                   # Subir informes de ZAP
                   ZAP_REPORT_PATH="${{ github.workspace }}/zap-reports/zap-security-report.json"
-                  ZAP_REPORT_ALT_PATH="${{ github.workspace }}/zap-reports/zap-security-report-alt.json"
               
                   upload_file_to_s3 "$ZAP_REPORT_PATH" "s3://bedrockawss3test/informes/zap-security-report-${{ github.sha }}.json"
-                  upload_file_to_s3 "$ZAP_REPORT_ALT_PATH" "s3://bedrockawss3test/informes/zap-security-report-alt-${{ github.sha }}.json"
