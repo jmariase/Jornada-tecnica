@@ -246,5 +246,6 @@ jobs:
               echo "No ZAP reports found to upload"
             fi  
           done
+        shell: bash
         }
-        shell: bash  
+          
