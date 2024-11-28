@@ -3,7 +3,7 @@ name: Performance and Security Scanning
 on: [push, pull_request]
 
 env:
-  TARGET_URL: https://juice-shop.herokuapp.com/
+  TARGET_URL: https://ginandjuice.shop/
   JMETER_VERSION: 5.6.3
   ZAP_VERSION: 2.12.0
   AWS_DEFAULT_REGION: us-east-1
@@ -52,7 +52,7 @@ jobs:
                 <collectionProp name="Arguments.elements">
                   <elementProp name="DOMAIN" elementType="Argument">
                     <stringProp name="Argument.name">DOMAIN</stringProp>
-                    <stringProp name="Argument.value">juice-shop.herokuapp.com</stringProp>
+                    <stringProp name="Argument.value">ginandjuice.shop</stringProp>
                     <stringProp name="Argument.metadata">=</stringProp>
                   </elementProp>
                   <elementProp name="PROTOCOL" elementType="Argument">
