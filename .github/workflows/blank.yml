@@ -324,6 +324,7 @@ jobs:
         }
         
         validate_prerequisites() {
+          # Verify URL
           if [[ -z "$TARGET_URL" ]]; then
             log_error "Target URL not specified"
           fi
@@ -366,17 +367,41 @@ jobs:
         }
         
         analyze_scan_results() {
-          local report_json="${{ github.workspace }}/zap-reports/zap-scan-$(date +%Y%m%d_%H%M%S).json"
+          local report_json=$(find "${{ github.workspace }}/zap-reports" -name "*.json" -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" ")
           
-          vulnerabilities=$(jq '.site[].alerts[] | select(.riskcode > 1) | .name' "$report_json")
+          if [[ -z "$report_json" ]]; then
+            log_info "No ZAP scan report found"
+            return 0
+          fi
           
-          if [[ -n "$vulnerabilities" ]]; then
-            log_info "Detected Vulnerabilities:"
-            echo "$vulnerabilities"
-            
-            if jq -e '.site[].alerts[] | select(.riskcode >= 3)' "$report_json" > /dev/null; then
-              log_error "Critical vulnerabilities detected"
+          log_info "Analyzing report: $report_json"
+          
+          local vulnerability_count=0
+          local critical_vulnerability_count=0
+          
+          if [[ ! -f "$report_json" || ! -r "$report_json" ]]; then
+            log_error "Cannot read report file: $report_json"
+            return 1
+          fi
+          
+          while IFS= read -r line; do
+            # Simple string matching for risk levels
+            if [[ "$line" =~ "riskcode\":[3-4] ]]; then
+              ((critical_vulnerability_count++))
+            elif [[ "$line" =~ "riskcode\":[2-4] ]]; then
+              ((vulnerability_count++))
+          
+              # Extract and log vulnerability names if possible
+              if [[ "$line" =~ \"name\":\"([^\"]+)\" ]]; then
+                log_info "Detected Vulnerability: ${BASH_REMATCH[1]}"
+              fi
             fi
+          done < "$report_json"
+          
+          if [[ $critical_vulnerability_count -gt 0 ]]; then
+            log_error "Critical vulnerabilities detected: $critical_vulnerability_count"
+          elif [[ $vulnerability_count -gt 0 ]]; then
+            log_info "Detected $vulnerability_count non-critical vulnerabilities"
           else
             log_info "No significant vulnerabilities detected"
           fi
