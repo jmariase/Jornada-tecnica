@@ -135,33 +135,6 @@ jobs:
         
         # Ejecutar pruebas de JMeter
         jmeter -n -t performance-test.jmx -l performance-results.jtl -f -o jmeter-report
-        
-        # Verificar si el directorio de informes existe
-        if [ ! -d "jmeter-report" ]; then
-          echo "Generando directorio de informes manualmente"
-          mkdir -p jmeter-report
-          cp performance-results.jtl jmeter-report/
-          
-          # Crear un JSON de estadísticas básicas
-          echo '{
-            "totalRequests": 9250,
-            "avgResponseTime": 128,
-            "minResponseTime": 120,
-            "maxResponseTime": 929,
-            "errorRate": 0
-          }' > jmeter-report/statistics.json
-        fi
-        
-        # Instalar jq para procesar JSON
-        sudo apt-get update
-        sudo apt-get install -y jq
-        
-        # Generar informe de rendimiento
-        if [ -f "jmeter-report/statistics.json" ]; then
-          cat jmeter-report/statistics.json | jq '.' > jmeter-performance-report.json
-        else
-          echo '{"error": "No se pudo generar informe de rendimiento"}' > jmeter-performance-report.json
-        fi
   
     - name: Install and Configure OWASP ZAP
       run: |
@@ -232,54 +205,32 @@ jobs:
                   -quickout "${{ github.workspace }}/zap-reports/zap-security-report-alt.json"
               fi
     
-    - name: Upload Reports to S3
-      run: |
-        # Crear directorios de respaldo si no existen
-        mkdir -p jmeter-report
-
-        # Generar informe de rendimiento si no existe
-        if [ ! -f "jmeter-performance-report.json" ]; then
-          echo "Generando informe de rendimiento predeterminado"
-          echo '{
-            "totalRequests": 0,
-            "avgResponseTime": 0,
-            "minResponseTime": 0,
-            "maxResponseTime": 0,
-            "errorRate": 0
-          }' > jmeter-performance-report.json
-        fi
-
-        # Generar archivo de resultados si no existe
-        if [ ! -f "performance-results.jtl" ]; then
-          echo "Generando archivo de resultados predeterminado"
-          touch performance-results.jtl
-        fi
-
-        # Listar contenido para verificación
-        echo "Contenido del directorio actual:"
-        ls -l
-
-        # Subir informe de rendimiento
-        aws s3 cp jmeter-performance-report.json s3://bedrockawss3test/informes/jmeter-report-${{ github.sha }}.json
-
-        # Subir resultados de pruebas
-        aws s3 cp performance-results.jtl s3://bedrockawss3test/informes/jmeter-results-${{ github.sha }}.jtl
-
-        # Intentar sincronizar, si falla copiar contenido manualmente
-        aws s3 sync jmeter-report s3://bedrockawss3test/informes/jmeter-report-${{ github.sha }}/ || {
-          # Si sync falla, copiar archivos individuales
-          for file in jmeter-report/*; do
-            if [ -f "$file" ]; then
-              aws s3 cp "$file" "s3://bedrockawss3test/informes/jmeter-report-${{ github.sha }}/$(basename "$file")"
-            fi
-          # Upload ZAP security reports
-            if [ -d "${{ github.workspace }}/zap-reports" ]; then
-              echo "Uploading ZAP security reports"
-              aws s3 sync "${{ github.workspace }}/zap-reports" s3://bedrockawss3test/informes/zap-reports-${{ github.sha }}.json
-            else
-              echo "No ZAP reports found to upload"
-            fi  
-          done
-        shell: bash
-        }
-          
+              - name: Upload Reports to S3
+                run: |
+                  # Función para verificar y subir un archivo a S3
+                  upload_file_to_s3() {
+                    local file_path="$1"
+                    local s3_path="$2"
+                    
+                    if [ -f "$file_path" ]; then
+                      echo "Subiendo archivo: $file_path"
+                      aws s3 cp "$file_path" "$s3_path"
+                    else
+                      echo "El archivo no existe: $file_path"
+                    fi
+                  }
+              
+                  # Subir informes de JMeter solo si existen
+                  upload_file_to_s3 "performance-results.jtl" "s3://bedrockawss3test/informes/jmeter-results-${{ github.sha }}.jtl"
+                  
+                  # Subir directorio de informe de JMeter si tiene contenido
+                  if [ -d "jmeter-report" ] && [ "$(ls -A jmeter-report)" ]; then
+                    aws s3 sync jmeter-report s3://bedrockawss3test/informes/jmeter-report-${{ github.sha }}/
+                  fi
+              
+                  # Subir informes de ZAP
+                  ZAP_REPORT_PATH="${{ github.workspace }}/zap-reports/zap-security-report.json"
+                  ZAP_REPORT_ALT_PATH="${{ github.workspace }}/zap-reports/zap-security-report-alt.json"
+              
+                  upload_file_to_s3 "$ZAP_REPORT_PATH" "s3://bedrockawss3test/informes/zap-security-report-${{ github.sha }}.json"
+                  upload_file_to_s3 "$ZAP_REPORT_ALT_PATH" "s3://bedrockawss3test/informes/zap-security-report-alt-${{ github.sha }}.json"
