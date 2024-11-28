@@ -191,19 +191,6 @@ jobs:
                 -quickout "${{ github.workspace }}/zap-reports/zap-security-report.json" \
                 -quickprogress \
                 -silent
-              
-              # Verificar si se generó el informe
-              if [ ! -f "${{ github.workspace }}/zap-reports/zap-security-report.json" ]; then
-                echo "Error: No se generó informe de seguridad"
-                
-                # Intentar escaneo alternativo
-                "$ZAP_FULL_PATH" -cmd \
-                  -port 8080 \
-                  -host 0.0.0.0 \
-                  -config api.disablekey=true \
-                  -quickurl "${{ env.TARGET_URL }}" \
-                  -quickout "${{ github.workspace }}/zap-reports/zap-security-report-alt.json"
-              fi
       
     - name: Upload Reports to S3
       run: |
