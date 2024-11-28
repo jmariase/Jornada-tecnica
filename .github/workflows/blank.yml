@@ -204,10 +204,10 @@ jobs:
                   -quickurl "${{ env.TARGET_URL }}" \
                   -quickout "${{ github.workspace }}/zap-reports/zap-security-report-alt.json"
               fi
-    
-              - name: Upload Reports to S3
-                run: |
-                  # Función para verificar y subir un archivo a S3
+      
+    - name: Upload Reports to S3
+      run: |
+                # Función para verificar y subir un archivo a S3
                   upload_file_to_s3() {
                     local file_path="$1"
                     local s3_path="$2"
